@@ -1,55 +1,64 @@
 # WiiUp - Projet Unity
 
-## Prérequis
+## 🎯 Installation rapide
 
-- Unity Editor version **6000.2.6f2** (obligatoire)
-- Git installé sur la machine
+**Version Unity requise : 6000.2.6f2**
 
-## Installation du projet
+1. `git clone [URL_REPO] && cd WiiUp`
+2. Ouvrir avec Unity Hub → "Add project from disk"
+3. Laisser Unity importer (5-10 minutes la première fois)
 
-1. **Cloner le repository :**
-   ```bash
-   git clone [URL_DU_REPO]
-   cd WiiUp
-   ```
+## ✅ Vérification avant commit
 
-2. **Ouvrir avec Unity :**
-   - Lancez Unity Hub
-   - Cliquez sur "Open" ou "Add"
-   - Sélectionnez le dossier racine du projet (`WiiUp/`)
-   - Unity va automatiquement :
-     - Re-générer le dossier `Library/`
-     - Télécharger les packages manquants
-     - Compiler les scripts
+Exécutez ce script pour vérifier votre projet :
+```bash
+./verify-project.sh
+```
 
-3. **Première ouverture :**
-   - La première ouverture peut prendre plusieurs minutes
-   - Unity doit importer tous les assets et télécharger les packages
-   - Ne fermez pas Unity pendant ce processus
+## 📁 Fichiers essentiels (DOIVENT être dans Git)
 
-## Problèmes courants
+- ✅ `Assets/` + tous les `.meta`
+- ✅ `ProjectSettings/`
+- ✅ `Packages/manifest.json`
+- ✅ `Packages/packages-lock.json`
 
-### "Failed to resolve packages" ou erreurs de packages
-1. Supprimez le dossier `Library/` (s'il existe)
-2. Dans Unity, allez dans `Window > Package Manager`
-3. Cliquez sur le bouton refresh ou redémarrez Unity
+## 🚫 Fichiers ignorés (générés automatiquement)
 
-### Version de Unity différente
-- Assurez-vous d'utiliser exactement Unity **6000.2.6f2**
-- Téléchargez cette version via Unity Hub si nécessaire
+- ❌ `Library/` 
+- ❌ `Temp/`
+- ❌ `Logs/`
+- ❌ `UserSettings/`
+- ❌ `*.csproj`, `*.sln`
 
-### Erreurs de compilation
-- Allez dans `Assets > Reimport All` pour re-importer tous les assets
-- Redémarrez Unity si nécessaire
+## 🔧 Résolution de problèmes
 
-## Structure du projet
+### Erreur "Missing references" sur l'autre machine
+1. Vérifiez que tous les `.meta` sont présents
+2. `Assets > Reimport All` dans Unity
+3. Redémarrez Unity
 
-- `Assets/` - Tous les assets du jeu (scènes, scripts, prefabs, etc.)
-- `ProjectSettings/` - Configuration Unity du projet
-- `Packages/` - Liste des packages Unity utilisés
-- `UserSettings/` - Paramètres utilisateur (ignoré par Git)
-- `Library/` - Cache Unity (généré automatiquement, ignoré par Git)
+### Erreur "Failed to resolve packages"  
+1. Supprimez `Library/` s'il existe
+2. `Window > Package Manager > Refresh`
+3. Redémarrez Unity
 
-## Note importante
+### Scripts ne compilent pas
+- Vérifiez la version Unity (doit être exactement 6000.2.6f2)
+- `Assets > Reimport All`
 
-Le dossier `Library/` est automatiquement généré par Unity et ne doit jamais être commité dans Git. Si vous voyez ce dossier, assurez-vous qu'il est bien ignoré par le `.gitignore`.
+## 🔍 Structure du dépôt
+
+```
+WiiUp/
+├── Assets/          # Tous vos assets + .meta
+├── ProjectSettings/ # Config Unity
+├── Packages/        # manifest.json + packages-lock.json
+├── .gitignore       # Ignore Library/, Temp/, etc.
+└── README.md        # Ce fichier
+```
+
+## ⚠️ IMPORTANT
+
+- Les fichiers `.meta` sont **CRITIQUES** - ne jamais les supprimer
+- Le dossier `Library/` ne doit **JAMAIS** être commité
+- Toujours utiliser la même version Unity sur toutes les machines
