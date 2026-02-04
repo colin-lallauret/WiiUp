@@ -13,8 +13,9 @@ namespace StarterAssets
         public bool jump;
         public bool sprint;
         public bool crouch;
-        public bool grenade;  // Pour le clic gauche
-        public bool parachute; // Pour le clic droit
+        public bool grenade;  
+        public bool parachute; 
+        public bool respawn; // <--- AJOUTE CECI
 
         [Header("Movement Settings")]
         public bool analogMovement;
@@ -31,6 +32,7 @@ namespace StarterAssets
         public void OnCrouch(InputValue value) => CrouchInput(value.isPressed);
         public void OnGrenade(InputValue value) => GrenadeInput(value.isPressed);
         public void OnParachute(InputValue value) => ParachuteInput(value.isPressed);
+        public void OnRespawn(InputValue value) => RespawnInput(value.isPressed); // <--- AJOUTE CECI
 #endif
 
         public void MoveInput(Vector2 newMoveDirection) => move = newMoveDirection;
@@ -40,6 +42,7 @@ namespace StarterAssets
         public void CrouchInput(bool newCrouchState) => crouch = newCrouchState;
         public void GrenadeInput(bool newGrenadeState) => grenade = newGrenadeState;
         public void ParachuteInput(bool newParachuteState) => parachute = newParachuteState;
+        public void RespawnInput(bool newRespawnState) => respawn = newRespawnState; // <--- AJOUTE CECI
 
         private void OnApplicationFocus(bool hasFocus) => SetCursorState(cursorLocked);
         private void SetCursorState(bool newState) => Cursor.lockState = newState ? CursorLockMode.Locked : CursorLockMode.None;

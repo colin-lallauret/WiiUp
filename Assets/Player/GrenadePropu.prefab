@@ -155,7 +155,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RepulsionGrenade
   radius: 5
   explosionForce: 15
-  fuseTime: 1
+  fuseTime: 1.5
   bipSound: {fileID: 8300000, guid: bf016dedfb3f637478773794fb4165cc, type: 3}
   flashColor: {r: 1, g: 0, b: 1, a: 1}
   explosionEffect: {fileID: 0}

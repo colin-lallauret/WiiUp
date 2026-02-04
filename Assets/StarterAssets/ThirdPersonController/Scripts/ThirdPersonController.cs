@@ -6,6 +6,7 @@ using UnityEngine.InputSystem;
 namespace StarterAssets
 {
     [RequireComponent(typeof(CharacterController))]
+    [RequireComponent(typeof(AudioSource))] // Force la présence de l'AudioSource pour les sons 2D
 #if ENABLE_INPUT_SYSTEM 
     [RequireComponent(typeof(PlayerInput))]
 #endif
@@ -21,13 +22,20 @@ namespace StarterAssets
         public float NormalHeight = 2.0f;
 
         [Header("Gliding")]
-        [Tooltip("La gravité appliquée quand on plane")]
         public float GlideGravity = -1.5f; 
-        [Tooltip("L'objet visuel du parapluie à activer")]
         public GameObject UmbrellaObject; 
         
-        // Propriété publique pour le GrenadeLauncher
+        [Header("Audio Custom (Sons 2D)")]
+        public AudioClip umbrellaOpenSound;     
+        public AudioClip umbrellaLandingSound; 
+        public AudioClip respawnSound; // Joué directement via l'AudioSource du joueur
+
         public bool IsGliding { get; private set; }
+        private bool _hasPlayedOpenSound = false; 
+        private bool _wasGlidingBeforeLanding = false; 
+
+        [Header("Checkpoint System")]
+        private Vector3 _respawnPosition; // Mémorise le dernier checkpoint franchi
 
         [Range(0.0f, 0.3f)]
         public float RotationSmoothTime = 0.12f;
@@ -58,26 +66,18 @@ namespace StarterAssets
         public float CameraAngleOverride = 0.0f;
         public bool LockCameraPosition = false;
 
-        // cinemachine
         private float _cinemachineTargetYaw;
         private float _cinemachineTargetPitch;
-
-        // player
         private float _speed;
         private float _animationBlend;
         private float _targetRotation = 0.0f;
         private float _rotationVelocity;
         private float _verticalVelocity;
         private float _terminalVelocity = 53.0f;
-
-        // propulsion & impact
         private Vector3 _impactVelocity; 
-
-        // timeout deltatime
         private float _jumpTimeoutDelta;
         private float _fallTimeoutDelta;
 
-        // animation IDs
         private int _animIDSpeed;
         private int _animIDGrounded;
         private int _animIDJump;
@@ -93,7 +93,7 @@ namespace StarterAssets
         private CharacterController _controller;
         private StarterAssetsInputs _input;
         private GameObject _mainCamera;
-
+        private AudioSource _audioSource; // Composant pour les sons "dans les oreilles"
         private const float _threshold = 0.01f;
         private bool _hasAnimator;
 
@@ -111,10 +111,7 @@ namespace StarterAssets
 
         private void Awake()
         {
-            if (_mainCamera == null)
-            {
-                _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
-            }
+            if (_mainCamera == null) _mainCamera = GameObject.FindGameObjectWithTag("MainCamera");
         }
 
         private void Start()
@@ -123,22 +120,33 @@ namespace StarterAssets
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
             _input = GetComponent<StarterAssetsInputs>();
+            _audioSource = GetComponent<AudioSource>(); // Initialisation de l'audio
 #if ENABLE_INPUT_SYSTEM 
             _playerInput = GetComponent<PlayerInput>();
 #endif
             AssignAnimationIDs();
             _jumpTimeoutDelta = JumpTimeout;
             _fallTimeoutDelta = FallTimeout;
+
+            // Initialise le respawn à la position de départ
+            _respawnPosition = transform.position;
         }
 
         private void Update()
         {
             _hasAnimator = TryGetComponent(out _animator);
-
+            
             HandleCrouch();
             JumpAndGravity();
             GroundedCheck();
             Move();
+
+            // --- INPUT RESPAWN (Compatible Input System) ---
+            if (_input.respawn)
+            {
+                Respawn();
+                _input.respawn = false; 
+            }
         }
 
         private void LateUpdate()
@@ -161,35 +169,23 @@ namespace StarterAssets
         {
             if (_input.crouch)
             {
-                // On réduit la hauteur
                 _controller.height = CrouchHeight;
-                // On recalcule le centre pour que le bas du cylindre reste au niveau du sol
-                // Formule : Hauteur / 2
                 _controller.center = new Vector3(0, CrouchHeight / 2f, 0);
             }
             else
             {
-                // On remet la hauteur normale
                 _controller.height = NormalHeight;
-                // On remet le centre normal (0.93f est la valeur standard du Starter Asset)
                 _controller.center = new Vector3(0, NormalHeight / 2f, 0); 
             }
 
-            if (_hasAnimator)
-            {
-                _animator.SetBool(_animIDCrouch, _input.crouch);
-            }
+            if (_hasAnimator) _animator.SetBool(_animIDCrouch, _input.crouch);
         }
 
         private void GroundedCheck()
         {
             Vector3 spherePosition = new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z);
             Grounded = Physics.CheckSphere(spherePosition, GroundedRadius, GroundLayers, QueryTriggerInteraction.Ignore);
-
-            if (_hasAnimator)
-            {
-                _animator.SetBool(_animIDGrounded, Grounded);
-            }
+            if (_hasAnimator) _animator.SetBool(_animIDGrounded, Grounded);
         }
 
         private void CameraRotation()
@@ -200,10 +196,8 @@ namespace StarterAssets
                 _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier;
                 _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier;
             }
-
             _cinemachineTargetYaw = ClampAngle(_cinemachineTargetYaw, float.MinValue, float.MaxValue);
             _cinemachineTargetPitch = ClampAngle(_cinemachineTargetPitch, BottomClamp, TopClamp);
-
             CinemachineCameraTarget.transform.rotation = Quaternion.Euler(_cinemachineTargetPitch + CameraAngleOverride, _cinemachineTargetYaw, 0.0f);
         }
 
@@ -211,10 +205,7 @@ namespace StarterAssets
         {
             float targetSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
             if (_input.crouch) targetSpeed = CrouchSpeed;
-            
-            // Bonus de vitesse horizontale en planant
             if (IsGliding) targetSpeed *= 1.2f;
-
             if (_input.move == Vector2.zero) targetSpeed = 0.0f;
 
             float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
@@ -226,16 +217,12 @@ namespace StarterAssets
                 _speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude, Time.deltaTime * SpeedChangeRate);
                 _speed = Mathf.Round(_speed * 1000f) / 1000f;
             }
-            else
-            {
-                _speed = targetSpeed;
-            }
+            else _speed = targetSpeed;
 
             _animationBlend = Mathf.Lerp(_animationBlend, targetSpeed, Time.deltaTime * SpeedChangeRate);
             if (_animationBlend < 0.01f) _animationBlend = 0f;
 
             Vector3 inputDirection = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
-
             if (_input.move != Vector2.zero)
             {
                 _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
@@ -244,7 +231,6 @@ namespace StarterAssets
             }
 
             Vector3 targetDirection = Quaternion.Euler(0.0f, _targetRotation, 0.0f) * Vector3.forward;
-
             Vector3 movement = targetDirection.normalized * _speed + _impactVelocity;
             _controller.Move(movement * Time.deltaTime + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
 
@@ -261,8 +247,16 @@ namespace StarterAssets
         {
             if (Grounded)
             {
+                if (_wasGlidingBeforeLanding)
+                {
+                    // Atterrissage parachute : Son 2D (SpatialBlend 0 recommandé sur l'AudioSource)
+                    if (_audioSource != null && umbrellaLandingSound != null) _audioSource.PlayOneShot(umbrellaLandingSound);
+                    _wasGlidingBeforeLanding = false; 
+                }
+
                 _fallTimeoutDelta = FallTimeout;
-                IsGliding = false; // Reset de l'état au sol
+                IsGliding = false; 
+                _hasPlayedOpenSound = false; 
 
                 if (_hasAnimator)
                 {
@@ -271,10 +265,7 @@ namespace StarterAssets
                     _animator.SetBool(_animIDGliding, false);
                 }
 
-                if (_verticalVelocity < 0.0f)
-                {
-                    _verticalVelocity = -2f;
-                }
+                if (_verticalVelocity < 0.0f) _verticalVelocity = -2f;
 
                 if (_input.jump && _jumpTimeoutDelta <= 0.0f && !_input.crouch)
                 {
@@ -283,7 +274,6 @@ namespace StarterAssets
                 }
 
                 if (_jumpTimeoutDelta >= 0.0f) _jumpTimeoutDelta -= Time.deltaTime;
-                
                 if(UmbrellaObject != null && UmbrellaObject.activeSelf) UmbrellaObject.SetActive(false);
             }
             else
@@ -294,25 +284,27 @@ namespace StarterAssets
 
                 _input.jump = false;
 
-                // --- LOGIQUE DU PLANEUR ---
                 IsGliding = _input.parachute && _verticalVelocity < 0;
 
                 if (IsGliding) 
                 {
-                    // Stabilisation immédiate de la chute
-                    if (_verticalVelocity < GlideGravity) _verticalVelocity = GlideGravity;
-                    
-                    _verticalVelocity += GlideGravity * Time.deltaTime;
+                    _wasGlidingBeforeLanding = true;
 
+                    if (!_hasPlayedOpenSound)
+                    {
+                        // Ouverture parachute : Son 2D
+                        if (_audioSource != null && umbrellaOpenSound != null) _audioSource.PlayOneShot(umbrellaOpenSound);
+                        _hasPlayedOpenSound = true;
+                    }
+
+                    if (_verticalVelocity < GlideGravity) _verticalVelocity = GlideGravity;
+                    _verticalVelocity += GlideGravity * Time.deltaTime;
                     if(UmbrellaObject != null && !UmbrellaObject.activeSelf) UmbrellaObject.SetActive(true);
                 }
                 else 
                 {
-                    if (_verticalVelocity < _terminalVelocity)
-                    {
-                        _verticalVelocity += Gravity * Time.deltaTime;
-                    }
-                    
+                    _hasPlayedOpenSound = false; 
+                    if (_verticalVelocity < _terminalVelocity) _verticalVelocity += Gravity * Time.deltaTime;
                     if(UmbrellaObject != null && UmbrellaObject.activeSelf) UmbrellaObject.SetActive(false);
                 }
 
@@ -320,10 +312,32 @@ namespace StarterAssets
             }
         }
 
+        // --- MÉTHODES PUBLIQUES ---
+
         public void LaunchPlayer(Vector3 force)
         {
             _impactVelocity += force;
             _verticalVelocity = force.y; 
+        }
+
+        public void SetCheckpoint(Vector3 newPos)
+        {
+            _respawnPosition = newPos;
+        }
+
+        public void Respawn()
+        {
+            // --- SON DIRECT DANS LES OREILLES (2D) ---
+            if (_audioSource != null && respawnSound != null)
+            {
+                _audioSource.PlayOneShot(respawnSound);
+            }
+
+            _controller.enabled = false;
+            transform.position = _respawnPosition;
+            _verticalVelocity = 0;
+            _impactVelocity = Vector3.zero;
+            _controller.enabled = true;
         }
 
         private static float ClampAngle(float lfAngle, float lfMin, float lfMax)
@@ -333,24 +347,12 @@ namespace StarterAssets
             return Mathf.Clamp(lfAngle, lfMin, lfMax);
         }
 
-        private void OnDrawGizmosSelected()
-        {
-            Color transparentGreen = new Color(0.0f, 1.0f, 0.0f, 0.35f);
-            Color transparentRed = new Color(1.0f, 0.0f, 0.0f, 0.35f);
-            if (Grounded) Gizmos.color = transparentGreen;
-            else Gizmos.color = transparentRed;
-            Gizmos.DrawSphere(new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z), GroundedRadius);
-        }
-
         private void OnFootstep(AnimationEvent animationEvent)
         {
-            if (animationEvent.animatorClipInfo.weight > 0.5f)
+            if (animationEvent.animatorClipInfo.weight > 0.5f && FootstepAudioClips.Length > 0)
             {
-                if (FootstepAudioClips.Length > 0)
-                {
-                    var index = Random.Range(0, FootstepAudioClips.Length);
-                    AudioSource.PlayClipAtPoint(FootstepAudioClips[index], transform.TransformPoint(_controller.center), FootstepAudioVolume);
-                }
+                var index = Random.Range(0, FootstepAudioClips.Length);
+                AudioSource.PlayClipAtPoint(FootstepAudioClips[index], transform.TransformPoint(_controller.center), FootstepAudioVolume);
             }
         }
 

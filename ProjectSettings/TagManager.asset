@@ -11,6 +11,7 @@ TagManager:
   - Slide
   - CinemachineTarget
   - EnemyCar
+  - NeedRespawn
   layers:
   - Default
   - TransparentFX
