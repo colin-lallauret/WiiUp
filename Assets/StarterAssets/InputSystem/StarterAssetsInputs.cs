@@ -15,7 +15,7 @@ namespace StarterAssets
         public bool crouch;
         public bool grenade;  
         public bool parachute; 
-        public bool respawn; // <--- AJOUTE CECI
+        public bool respawn; // Sera vrai tant que la touche R est maintenue
 
         [Header("Movement Settings")]
         public bool analogMovement;
@@ -32,7 +32,9 @@ namespace StarterAssets
         public void OnCrouch(InputValue value) => CrouchInput(value.isPressed);
         public void OnGrenade(InputValue value) => GrenadeInput(value.isPressed);
         public void OnParachute(InputValue value) => ParachuteInput(value.isPressed);
-        public void OnRespawn(InputValue value) => RespawnInput(value.isPressed); // <--- AJOUTE CECI
+        
+        // Gère le maintien de la touche pour la barre de chargement
+        public void OnRespawn(InputValue value) => RespawnInput(value.isPressed);
 #endif
 
         public void MoveInput(Vector2 newMoveDirection) => move = newMoveDirection;
@@ -42,7 +44,7 @@ namespace StarterAssets
         public void CrouchInput(bool newCrouchState) => crouch = newCrouchState;
         public void GrenadeInput(bool newGrenadeState) => grenade = newGrenadeState;
         public void ParachuteInput(bool newParachuteState) => parachute = newParachuteState;
-        public void RespawnInput(bool newRespawnState) => respawn = newRespawnState; // <--- AJOUTE CECI
+        public void RespawnInput(bool newRespawnState) => respawn = newRespawnState;
 
         private void OnApplicationFocus(bool hasFocus) => SetCursorState(cursorLocked);
         private void SetCursorState(bool newState) => Cursor.lockState = newState ? CursorLockMode.Locked : CursorLockMode.None;

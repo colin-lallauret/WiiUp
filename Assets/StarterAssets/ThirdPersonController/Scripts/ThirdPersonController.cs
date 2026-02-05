@@ -158,11 +158,8 @@ namespace StarterAssets
             GroundedCheck();
             Move();
 
-            if (_input.respawn)
-            {
-                Respawn();
-                _input.respawn = false; 
-            }
+            // NOTE : La ligne "if (_input.respawn) Respawn();" a été supprimée 
+            // pour permettre au RespawnManager de gérer le délai de 3 secondes.
         }
 
         private void LateUpdate()
@@ -227,7 +224,6 @@ namespace StarterAssets
             float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
             float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
 
-            // --- PHYSIQUE DE GLISSE ---
             float currentAcceleration = _isOnIce ? 0.5f : SpeedChangeRate;
 
             if (currentHorizontalSpeed < targetSpeed - 0.1f || currentHorizontalSpeed > targetSpeed + 0.1f)
@@ -247,8 +243,6 @@ namespace StarterAssets
             if (_input.move != Vector2.zero)
             {
                 _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
-                
-                // --- INERTIE DE ROTATION SUR GLACE ---
                 float currentRotSmooth = _isOnIce ? 0.4f : RotationSmoothTime;
                 float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity, currentRotSmooth);
                 transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
@@ -262,7 +256,6 @@ namespace StarterAssets
 
             if (_hasAnimator)
             {
-                // --- PATINAGE VISUEL ---
                 float animModifier = _isOnIce ? IceAnimationSpeed : 1.0f;
                 _animator.SetFloat(_animIDSpeed, _animationBlend * animModifier);
                 _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
