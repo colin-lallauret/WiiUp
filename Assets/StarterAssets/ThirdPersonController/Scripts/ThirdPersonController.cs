@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 namespace StarterAssets
 {
     [RequireComponent(typeof(CharacterController))]
-    [RequireComponent(typeof(AudioSource))] // Force la présence de l'AudioSource pour les sons 2D
+    [RequireComponent(typeof(AudioSource))] 
 #if ENABLE_INPUT_SYSTEM 
     [RequireComponent(typeof(PlayerInput))]
 #endif
@@ -16,26 +16,30 @@ namespace StarterAssets
         public float MoveSpeed = 2.0f;
         public float SprintSpeed = 5.335f;
         
-        // --- PARAMÈTRES CROUCH ---
+        [Header("Crouch Settings")]
         public float CrouchSpeed = 1.5f;
         public float CrouchHeight = 1.0f;
         public float NormalHeight = 2.0f;
 
-        [Header("Gliding")]
+        [Header("Gliding Settings")]
         public float GlideGravity = -1.5f; 
         public GameObject UmbrellaObject; 
         
         [Header("Audio Custom (Sons 2D)")]
         public AudioClip umbrellaOpenSound;     
         public AudioClip umbrellaLandingSound; 
-        public AudioClip respawnSound; // Joué directement via l'AudioSource du joueur
+        public AudioClip respawnSound;
 
-        public bool IsGliding { get; private set; }
-        private bool _hasPlayedOpenSound = false; 
-        private bool _wasGlidingBeforeLanding = false; 
+        [Header("Ice Mechanic")]
+        public GameObject iceVisualL; // Glisse l'objet "Ice1" ici (enfant de Left_Foot)
+        public GameObject iceVisualR; // Glisse l'objet "Ice2" ici (enfant de Right_Foot)
+        [Tooltip("Vitesse de l'animation sur la glace (0.5 = patinage)")]
+        public float IceAnimationSpeed = 0.5f; 
+        private bool _isOnIce = false;
+        private float _iceTimer = 0f;
 
         [Header("Checkpoint System")]
-        private Vector3 _respawnPosition; // Mémorise le dernier checkpoint franchi
+        private Vector3 _respawnPosition; 
 
         [Range(0.0f, 0.3f)]
         public float RotationSmoothTime = 0.12f;
@@ -93,9 +97,13 @@ namespace StarterAssets
         private CharacterController _controller;
         private StarterAssetsInputs _input;
         private GameObject _mainCamera;
-        private AudioSource _audioSource; // Composant pour les sons "dans les oreilles"
+        private AudioSource _audioSource; 
         private const float _threshold = 0.01f;
         private bool _hasAnimator;
+
+        public bool IsGliding { get; private set; }
+        private bool _hasPlayedOpenSound = false; 
+        private bool _wasGlidingBeforeLanding = false; 
 
         private bool IsCurrentDeviceMouse
         {
@@ -120,15 +128,13 @@ namespace StarterAssets
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
             _input = GetComponent<StarterAssetsInputs>();
-            _audioSource = GetComponent<AudioSource>(); // Initialisation de l'audio
+            _audioSource = GetComponent<AudioSource>(); 
 #if ENABLE_INPUT_SYSTEM 
             _playerInput = GetComponent<PlayerInput>();
 #endif
             AssignAnimationIDs();
             _jumpTimeoutDelta = JumpTimeout;
             _fallTimeoutDelta = FallTimeout;
-
-            // Initialise le respawn à la position de départ
             _respawnPosition = transform.position;
         }
 
@@ -136,12 +142,12 @@ namespace StarterAssets
         {
             _hasAnimator = TryGetComponent(out _animator);
             
+            HandleIceLogic(); 
             HandleCrouch();
             JumpAndGravity();
             GroundedCheck();
             Move();
 
-            // --- INPUT RESPAWN (Compatible Input System) ---
             if (_input.respawn)
             {
                 Respawn();
@@ -177,7 +183,6 @@ namespace StarterAssets
                 _controller.height = NormalHeight;
                 _controller.center = new Vector3(0, NormalHeight / 2f, 0); 
             }
-
             if (_hasAnimator) _animator.SetBool(_animIDCrouch, _input.crouch);
         }
 
@@ -212,21 +217,31 @@ namespace StarterAssets
             float speedOffset = 0.1f;
             float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
 
+            // --- PHYSIQUE DE GLISSE (ACCÉLÉRATION) ---
+            float currentAcceleration = _isOnIce ? 0.5f : SpeedChangeRate;
+
             if (currentHorizontalSpeed < targetSpeed - speedOffset || currentHorizontalSpeed > targetSpeed + speedOffset)
             {
-                _speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude, Time.deltaTime * SpeedChangeRate);
+                _speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude, Time.deltaTime * currentAcceleration);
                 _speed = Mathf.Round(_speed * 1000f) / 1000f;
             }
-            else _speed = targetSpeed;
+            else
+            {
+                _speed = targetSpeed;
+            }
 
-            _animationBlend = Mathf.Lerp(_animationBlend, targetSpeed, Time.deltaTime * SpeedChangeRate);
+            _animationBlend = Mathf.Lerp(_animationBlend, targetSpeed, Time.deltaTime * currentAcceleration);
             if (_animationBlend < 0.01f) _animationBlend = 0f;
 
             Vector3 inputDirection = new Vector3(_input.move.x, 0.0f, _input.move.y).normalized;
+
             if (_input.move != Vector2.zero)
             {
                 _targetRotation = Mathf.Atan2(inputDirection.x, inputDirection.z) * Mathf.Rad2Deg + _mainCamera.transform.eulerAngles.y;
-                float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity, RotationSmoothTime);
+                
+                // --- INERTIE DE ROTATION SUR GLACE ---
+                float currentRotSmooth = _isOnIce ? 0.4f : RotationSmoothTime;
+                float rotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, _targetRotation, ref _rotationVelocity, currentRotSmooth);
                 transform.rotation = Quaternion.Euler(0.0f, rotation, 0.0f);
             }
 
@@ -238,7 +253,9 @@ namespace StarterAssets
 
             if (_hasAnimator)
             {
-                _animator.SetFloat(_animIDSpeed, _animationBlend);
+                // --- PATINAGE VISUEL (RALENTISSEMENT ANIMATION) ---
+                float animModifier = _isOnIce ? IceAnimationSpeed : 1.0f;
+                _animator.SetFloat(_animIDSpeed, _animationBlend * animModifier);
                 _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
             }
         }
@@ -249,11 +266,9 @@ namespace StarterAssets
             {
                 if (_wasGlidingBeforeLanding)
                 {
-                    // Atterrissage parachute : Son 2D (SpatialBlend 0 recommandé sur l'AudioSource)
                     if (_audioSource != null && umbrellaLandingSound != null) _audioSource.PlayOneShot(umbrellaLandingSound);
                     _wasGlidingBeforeLanding = false; 
                 }
-
                 _fallTimeoutDelta = FallTimeout;
                 IsGliding = false; 
                 _hasPlayedOpenSound = false; 
@@ -264,15 +279,12 @@ namespace StarterAssets
                     _animator.SetBool(_animIDFreeFall, false);
                     _animator.SetBool(_animIDGliding, false);
                 }
-
                 if (_verticalVelocity < 0.0f) _verticalVelocity = -2f;
-
                 if (_input.jump && _jumpTimeoutDelta <= 0.0f && !_input.crouch)
                 {
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
                     if (_hasAnimator) _animator.SetBool(_animIDJump, true);
                 }
-
                 if (_jumpTimeoutDelta >= 0.0f) _jumpTimeoutDelta -= Time.deltaTime;
                 if(UmbrellaObject != null && UmbrellaObject.activeSelf) UmbrellaObject.SetActive(false);
             }
@@ -283,20 +295,16 @@ namespace StarterAssets
                 else if (_hasAnimator) _animator.SetBool(_animIDFreeFall, true);
 
                 _input.jump = false;
-
                 IsGliding = _input.parachute && _verticalVelocity < 0;
 
                 if (IsGliding) 
                 {
                     _wasGlidingBeforeLanding = true;
-
                     if (!_hasPlayedOpenSound)
                     {
-                        // Ouverture parachute : Son 2D
                         if (_audioSource != null && umbrellaOpenSound != null) _audioSource.PlayOneShot(umbrellaOpenSound);
                         _hasPlayedOpenSound = true;
                     }
-
                     if (_verticalVelocity < GlideGravity) _verticalVelocity = GlideGravity;
                     _verticalVelocity += GlideGravity * Time.deltaTime;
                     if(UmbrellaObject != null && !UmbrellaObject.activeSelf) UmbrellaObject.SetActive(true);
@@ -307,12 +315,31 @@ namespace StarterAssets
                     if (_verticalVelocity < _terminalVelocity) _verticalVelocity += Gravity * Time.deltaTime;
                     if(UmbrellaObject != null && UmbrellaObject.activeSelf) UmbrellaObject.SetActive(false);
                 }
-
                 if (_hasAnimator) _animator.SetBool(_animIDGliding, IsGliding);
             }
         }
 
-        // --- MÉTHODES PUBLIQUES ---
+        public void ActivateIce(float duration)
+        {
+            _isOnIce = true;
+            _iceTimer = duration;
+            if (iceVisualL != null) iceVisualL.SetActive(true);
+            if (iceVisualR != null) iceVisualR.SetActive(true);
+        }
+
+        private void HandleIceLogic()
+        {
+            if (_isOnIce)
+            {
+                _iceTimer -= Time.deltaTime;
+                if (_iceTimer <= 0)
+                {
+                    _isOnIce = false;
+                    if (iceVisualL != null) iceVisualL.SetActive(false);
+                    if (iceVisualR != null) iceVisualR.SetActive(false);
+                }
+            }
+        }
 
         public void LaunchPlayer(Vector3 force)
         {
@@ -327,12 +354,7 @@ namespace StarterAssets
 
         public void Respawn()
         {
-            // --- SON DIRECT DANS LES OREILLES (2D) ---
-            if (_audioSource != null && respawnSound != null)
-            {
-                _audioSource.PlayOneShot(respawnSound);
-            }
-
+            if (_audioSource != null && respawnSound != null) _audioSource.PlayOneShot(respawnSound);
             _controller.enabled = false;
             transform.position = _respawnPosition;
             _verticalVelocity = 0;
