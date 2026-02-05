@@ -31,12 +31,18 @@ namespace StarterAssets
         public AudioClip respawnSound;
 
         [Header("Ice Mechanic")]
-        public GameObject iceVisualL; // Glisse l'objet "Ice1" ici (enfant de Left_Foot)
-        public GameObject iceVisualR; // Glisse l'objet "Ice2" ici (enfant de Right_Foot)
+        public GameObject iceVisualL; // Objet Ice1 (enfant de Left_Foot)
+        public GameObject iceVisualR; // Objet Ice2 (enfant de Right_Foot)
         [Tooltip("Vitesse de l'animation sur la glace (0.5 = patinage)")]
         public float IceAnimationSpeed = 0.5f; 
         private bool _isOnIce = false;
-        private float _iceTimer = 0f;
+
+        [Header("Space Mechanic")]
+        public float SpaceGravity = -2.0f; // Gravité lunaire
+        public float SpaceJumpHeight = 4.0f; // Saut haut
+        private float _normalGravity;
+        private float _normalJumpHeight;
+        private bool _isInSpace = false;
 
         [Header("Checkpoint System")]
         private Vector3 _respawnPosition; 
@@ -135,14 +141,18 @@ namespace StarterAssets
             AssignAnimationIDs();
             _jumpTimeoutDelta = JumpTimeout;
             _fallTimeoutDelta = FallTimeout;
+
             _respawnPosition = transform.position;
+
+            // Sauvegarde des valeurs initiales pour ClearEffect
+            _normalGravity = Gravity;
+            _normalJumpHeight = JumpHeight;
         }
 
         private void Update()
         {
             _hasAnimator = TryGetComponent(out _animator);
             
-            HandleIceLogic(); 
             HandleCrouch();
             JumpAndGravity();
             GroundedCheck();
@@ -183,6 +193,7 @@ namespace StarterAssets
                 _controller.height = NormalHeight;
                 _controller.center = new Vector3(0, NormalHeight / 2f, 0); 
             }
+
             if (_hasAnimator) _animator.SetBool(_animIDCrouch, _input.crouch);
         }
 
@@ -214,16 +225,14 @@ namespace StarterAssets
             if (_input.move == Vector2.zero) targetSpeed = 0.0f;
 
             float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
-            float speedOffset = 0.1f;
             float inputMagnitude = _input.analogMovement ? _input.move.magnitude : 1f;
 
-            // --- PHYSIQUE DE GLISSE (ACCÉLÉRATION) ---
+            // --- PHYSIQUE DE GLISSE ---
             float currentAcceleration = _isOnIce ? 0.5f : SpeedChangeRate;
 
-            if (currentHorizontalSpeed < targetSpeed - speedOffset || currentHorizontalSpeed > targetSpeed + speedOffset)
+            if (currentHorizontalSpeed < targetSpeed - 0.1f || currentHorizontalSpeed > targetSpeed + 0.1f)
             {
                 _speed = Mathf.Lerp(currentHorizontalSpeed, targetSpeed * inputMagnitude, Time.deltaTime * currentAcceleration);
-                _speed = Mathf.Round(_speed * 1000f) / 1000f;
             }
             else
             {
@@ -253,7 +262,7 @@ namespace StarterAssets
 
             if (_hasAnimator)
             {
-                // --- PATINAGE VISUEL (RALENTISSEMENT ANIMATION) ---
+                // --- PATINAGE VISUEL ---
                 float animModifier = _isOnIce ? IceAnimationSpeed : 1.0f;
                 _animator.SetFloat(_animIDSpeed, _animationBlend * animModifier);
                 _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
@@ -269,6 +278,7 @@ namespace StarterAssets
                     if (_audioSource != null && umbrellaLandingSound != null) _audioSource.PlayOneShot(umbrellaLandingSound);
                     _wasGlidingBeforeLanding = false; 
                 }
+
                 _fallTimeoutDelta = FallTimeout;
                 IsGliding = false; 
                 _hasPlayedOpenSound = false; 
@@ -279,12 +289,15 @@ namespace StarterAssets
                     _animator.SetBool(_animIDFreeFall, false);
                     _animator.SetBool(_animIDGliding, false);
                 }
+
                 if (_verticalVelocity < 0.0f) _verticalVelocity = -2f;
+
                 if (_input.jump && _jumpTimeoutDelta <= 0.0f && !_input.crouch)
                 {
                     _verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
                     if (_hasAnimator) _animator.SetBool(_animIDJump, true);
                 }
+
                 if (_jumpTimeoutDelta >= 0.0f) _jumpTimeoutDelta -= Time.deltaTime;
                 if(UmbrellaObject != null && UmbrellaObject.activeSelf) UmbrellaObject.SetActive(false);
             }
@@ -315,42 +328,39 @@ namespace StarterAssets
                     if (_verticalVelocity < _terminalVelocity) _verticalVelocity += Gravity * Time.deltaTime;
                     if(UmbrellaObject != null && UmbrellaObject.activeSelf) UmbrellaObject.SetActive(false);
                 }
+
                 if (_hasAnimator) _animator.SetBool(_animIDGliding, IsGliding);
             }
         }
 
-        public void ActivateIce(float duration)
-        {
-            _isOnIce = true;
-            _iceTimer = duration;
-            if (iceVisualL != null) iceVisualL.SetActive(true);
-            if (iceVisualR != null) iceVisualR.SetActive(true);
+        // --- MÉTHODES PUBLIQUES ---
+
+        public void ActivateIce() { 
+            _isOnIce = true; 
+            if (iceVisualL != null) iceVisualL.SetActive(true); 
+            if (iceVisualR != null) iceVisualR.SetActive(true); 
+        }
+        
+        public void ClearIce() { 
+            _isOnIce = false; 
+            if (iceVisualL != null) iceVisualL.SetActive(false); 
+            if (iceVisualR != null) iceVisualR.SetActive(false); 
         }
 
-        private void HandleIceLogic()
-        {
-            if (_isOnIce)
-            {
-                _iceTimer -= Time.deltaTime;
-                if (_iceTimer <= 0)
-                {
-                    _isOnIce = false;
-                    if (iceVisualL != null) iceVisualL.SetActive(false);
-                    if (iceVisualR != null) iceVisualR.SetActive(false);
-                }
-            }
+        public void ActivateSpace() { 
+            _isInSpace = true; 
+            Gravity = SpaceGravity; 
+            JumpHeight = SpaceJumpHeight; 
         }
 
-        public void LaunchPlayer(Vector3 force)
-        {
-            _impactVelocity += force;
-            _verticalVelocity = force.y; 
+        public void ClearSpace() { 
+            _isInSpace = false; 
+            Gravity = _normalGravity; 
+            JumpHeight = _normalJumpHeight; 
         }
 
-        public void SetCheckpoint(Vector3 newPos)
-        {
-            _respawnPosition = newPos;
-        }
+        public void LaunchPlayer(Vector3 force) { _impactVelocity += force; _verticalVelocity = force.y; }
+        public void SetCheckpoint(Vector3 newPos) { _respawnPosition = newPos; }
 
         public void Respawn()
         {

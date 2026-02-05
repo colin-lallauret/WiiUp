@@ -1,9 +1,9 @@
 using UnityEngine;
-using Cinemachine; // Ou Unity.Cinemachine selon ta version
+using Cinemachine; // Ou Unity.Cinemachine
 
-public class IceZone : MonoBehaviour
+public class SpaceZone : MonoBehaviour
 {
-    public AudioClip iceEntrySound;
+    public AudioClip spaceEntrySound;
 
     private void OnTriggerEnter(Collider other)
     {
@@ -12,12 +12,11 @@ public class IceZone : MonoBehaviour
             var controller = other.GetComponent<StarterAssets.ThirdPersonController>();
             if (controller != null)
             {
-                controller.ActivateIce(); // Active sans durée
+                controller.ActivateSpace();
 
-                // Son et Shake
                 AudioSource playerAudio = other.GetComponent<AudioSource>();
-                if (playerAudio != null && iceEntrySound != null)
-                    playerAudio.PlayOneShot(iceEntrySound);
+                if (playerAudio != null && spaceEntrySound != null)
+                    playerAudio.PlayOneShot(spaceEntrySound);
 
                 CinemachineImpulseSource impulse = GetComponent<CinemachineImpulseSource>();
                 if (impulse != null) impulse.GenerateImpulse();
