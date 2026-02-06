@@ -12,6 +12,12 @@ namespace StarterAssets
 #endif
     public class ThirdPersonController : MonoBehaviour
     {
+        // --- ÉVÉNEMENTS ET LOCKS ---
+        public static System.Action OnPlayerRespawnEvent; 
+        [Header("Locks")]
+        public bool canThrowGrenade = true;
+        public bool canUseParachute = true;
+
         [Header("Player")]
         public float MoveSpeed = 2.0f;
         public float SprintSpeed = 5.335f;
@@ -31,15 +37,15 @@ namespace StarterAssets
         public AudioClip respawnSound;
 
         [Header("Ice Mechanic")]
-        public GameObject iceVisualL; // Objet Ice1 (enfant de Left_Foot)
-        public GameObject iceVisualR; // Objet Ice2 (enfant de Right_Foot)
+        public GameObject iceVisualL; 
+        public GameObject iceVisualR; 
         [Tooltip("Vitesse de l'animation sur la glace (0.5 = patinage)")]
         public float IceAnimationSpeed = 0.5f; 
         private bool _isOnIce = false;
 
         [Header("Space Mechanic")]
-        public float SpaceGravity = -2.0f; // Gravité lunaire
-        public float SpaceJumpHeight = 4.0f; // Saut haut
+        public float SpaceGravity = -2.0f; 
+        public float SpaceJumpHeight = 4.0f; 
         private float _normalGravity;
         private float _normalJumpHeight;
         private bool _isInSpace = false;
@@ -144,7 +150,6 @@ namespace StarterAssets
 
             _respawnPosition = transform.position;
 
-            // Sauvegarde des valeurs initiales pour ClearEffect
             _normalGravity = Gravity;
             _normalJumpHeight = JumpHeight;
         }
@@ -158,8 +163,8 @@ namespace StarterAssets
             GroundedCheck();
             Move();
 
-            // NOTE : La ligne "if (_input.respawn) Respawn();" a été supprimée 
-            // pour permettre au RespawnManager de gérer le délai de 3 secondes.
+            // Note: Si tu as un script de Grenade séparé, assure-toi qu'il vérifie 
+            // la variable 'canThrowGrenade' de ce controller avant de lancer.
         }
 
         private void LateUpdate()
@@ -301,7 +306,9 @@ namespace StarterAssets
                 else if (_hasAnimator) _animator.SetBool(_animIDFreeFall, true);
 
                 _input.jump = false;
-                IsGliding = _input.parachute && _verticalVelocity < 0;
+                
+                // AJOUT DU LOCK : On ne peut planer que si canUseParachute est vrai
+                IsGliding = canUseParachute && _input.parachute && _verticalVelocity < 0;
 
                 if (IsGliding) 
                 {
@@ -325,8 +332,6 @@ namespace StarterAssets
                 if (_hasAnimator) _animator.SetBool(_animIDGliding, IsGliding);
             }
         }
-
-        // --- MÉTHODES PUBLIQUES ---
 
         public void ActivateIce() { 
             _isOnIce = true; 
@@ -363,6 +368,11 @@ namespace StarterAssets
             _verticalVelocity = 0;
             _impactVelocity = Vector3.zero;
             _controller.enabled = true;
+
+            // --- DECLENCHE L'ALERTE POUR LE LABYRINTHE ET LES LOCKS ---
+            OnPlayerRespawnEvent?.Invoke();
+
+            SendMessage("OnPlayerRespawn", SendMessageOptions.DontRequireReceiver);
         }
 
         private static float ClampAngle(float lfAngle, float lfMin, float lfMax)

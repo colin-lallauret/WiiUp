@@ -12,6 +12,7 @@ TagManager:
   - CinemachineTarget
   - EnemyCar
   - NeedRespawn
+  - Obstacle
   layers:
   - Default
   - TransparentFX

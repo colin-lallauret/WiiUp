@@ -1,6 +1,6 @@
 using UnityEngine;
 using StarterAssets;
-using System.Collections; // Nécessaire pour les Coroutines
+using System.Collections;
 
 public class GrenadeLauncher : MonoBehaviour
 {
@@ -39,7 +39,8 @@ public class GrenadeLauncher : MonoBehaviour
 
     void Update()
     {
-        if (_input.grenade && Time.time >= _nextThrowTime && !_controller.IsGliding)
+        // AJOUT : On vérifie si canThrowGrenade est vrai avant de lancer
+        if (_input.grenade && Time.time >= _nextThrowTime && !_controller.IsGliding && _controller.canThrowGrenade)
         {
             _nextThrowTime = Time.time + throwCooldown;
 
@@ -56,6 +57,7 @@ public class GrenadeLauncher : MonoBehaviour
         }
         else if (_input.grenade)
         {
+            // On reset l'input même si le tir est bloqué pour éviter les tirs automatiques en sortant de zone
             _input.grenade = false;
         }
     }
@@ -73,7 +75,8 @@ public class GrenadeLauncher : MonoBehaviour
 
     void Throw()
     {
-        if (grenadePrefab == null || spawnPoint == null || _controller.IsGliding) return;
+        // On vérifie une dernière fois les conditions de sécurité
+        if (grenadePrefab == null || spawnPoint == null || _controller.IsGliding || !_controller.canThrowGrenade) return;
 
         GameObject g = Instantiate(grenadePrefab, spawnPoint.position, Quaternion.identity);
         Rigidbody rb = g.GetComponent<Rigidbody>();
