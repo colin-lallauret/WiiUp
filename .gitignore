@@ -131,3 +131,6 @@ crashlytics-build.properties
 
 # Fichiers de cache de shader personnalisés (rare)
 # *.shadercache
+
+*.psd
+Assets/CartoonTracksPack1/Track1/Textures/road_normal.png
