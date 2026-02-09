@@ -4,25 +4,17 @@ using StarterAssets;
 public class ZoneWithOutTools : MonoBehaviour
 {
     [Header("UI Feedback")]
-    public GameObject blockOverlayImage; // Glisse ton image "BlockOverlay" ici
+    public GameObject blockOverlayImage;
 
-    private void OnEnable()
-    {
-        // Sécurité : Si on meurt dans la zone, on débloque tout au respawn
-        ThirdPersonController.OnPlayerRespawnEvent += ForceUnlock;
-    }
-
-    private void OnDisable()
-    {
-        ThirdPersonController.OnPlayerRespawnEvent -= ForceUnlock;
-    }
+    private void OnEnable() { ThirdPersonController.OnPlayerRespawnEvent += ForceUnlock; }
+    private void OnDisable() { ThirdPersonController.OnPlayerRespawnEvent -= ForceUnlock; }
 
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Player"))
         {
-            SetToolsEnabled(other.gameObject, false);
-            if (blockOverlayImage != null) blockOverlayImage.SetActive(true);
+            BoulderSpawner.globalZoneCount++; // Utilise le même compteur que le spawner
+            UpdateState(other.gameObject);
         }
     }
 
@@ -30,28 +22,28 @@ public class ZoneWithOutTools : MonoBehaviour
     {
         if (other.CompareTag("Player"))
         {
-            SetToolsEnabled(other.gameObject, true);
-            if (blockOverlayImage != null) blockOverlayImage.SetActive(false);
+            BoulderSpawner.globalZoneCount--;
+            if (BoulderSpawner.globalZoneCount < 0) BoulderSpawner.globalZoneCount = 0;
+            UpdateState(other.gameObject);
         }
     }
 
-    private void SetToolsEnabled(GameObject player, bool state)
+    private void UpdateState(GameObject player)
     {
         ThirdPersonController controller = player.GetComponent<ThirdPersonController>();
         if (controller != null)
         {
-            controller.canThrowGrenade = state;
-            controller.canUseParachute = state;
+            bool shouldBeEnabled = (BoulderSpawner.globalZoneCount == 0);
+            controller.canThrowGrenade = shouldBeEnabled;
+            controller.canUseParachute = shouldBeEnabled;
+            if (blockOverlayImage != null) blockOverlayImage.SetActive(!shouldBeEnabled);
         }
     }
 
     private void ForceUnlock()
     {
-        // On récupère le joueur et on force la réactivation
+        BoulderSpawner.globalZoneCount = 0;
         GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null) SetToolsEnabled(player, true);
-        
-        // On cache l'image de blocage
-        if (blockOverlayImage != null) blockOverlayImage.SetActive(false);
+        if (player != null) UpdateState(player);
     }
 }

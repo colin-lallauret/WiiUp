@@ -1,6 +1,5 @@
 using UnityEngine;
 using StarterAssets;
-using UnityEngine.UI; // Nécessaire pour manipuler les images
 
 public class BoulderSpawner : MonoBehaviour
 {
@@ -13,30 +12,24 @@ public class BoulderSpawner : MonoBehaviour
     public int maxCubesInScene = 20; 
 
     [Header("UI Feedback")]
-    public GameObject blockOverlayImage; // Glisse ton image "BlockOverlay" ici
+    public GameObject blockOverlayImage;
 
     private float _nextSpawnTime;
     private bool _isPlayerInZone = false;
 
-    private void OnEnable()
-    {
-        ThirdPersonController.OnPlayerRespawnEvent += ForceUnlockActions;
-    }
+    // COMPTEUR PARTAGÉ (Static pour être vu par tous les scripts)
+    public static int globalZoneCount = 0;
 
-    private void OnDisable()
-    {
-        ThirdPersonController.OnPlayerRespawnEvent -= ForceUnlockActions;
-    }
+    private void OnEnable() { ThirdPersonController.OnPlayerRespawnEvent += ForceUnlockActions; }
+    private void OnDisable() { ThirdPersonController.OnPlayerRespawnEvent -= ForceUnlockActions; }
 
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Player")) 
         {
             _isPlayerInZone = true;
-            SetPlayerAbilities(other.gameObject, false);
-            
-            // AFFICHE L'IMAGE DE BLOCAGE
-            if (blockOverlayImage != null) blockOverlayImage.SetActive(true);
+            globalZoneCount++; // On ajoute une zone
+            UpdateGlobalAbilities(other.gameObject);
         }
     }
 
@@ -45,10 +38,9 @@ public class BoulderSpawner : MonoBehaviour
         if (other.CompareTag("Player")) 
         {
             _isPlayerInZone = false;
-            SetPlayerAbilities(other.gameObject, true);
-
-            // CACHE L'IMAGE DE BLOCAGE
-            if (blockOverlayImage != null) blockOverlayImage.SetActive(false);
+            globalZoneCount--; // On retire une zone
+            if (globalZoneCount < 0) globalZoneCount = 0;
+            UpdateGlobalAbilities(other.gameObject);
         }
     }
 
@@ -77,24 +69,23 @@ public class BoulderSpawner : MonoBehaviour
         Destroy(newCube, 10f);
     }
 
-    private void SetPlayerAbilities(GameObject player, bool state)
+    private void UpdateGlobalAbilities(GameObject player)
     {
         ThirdPersonController controller = player.GetComponent<ThirdPersonController>();
         if (controller != null)
         {
-            controller.canThrowGrenade = state;
-            controller.canUseParachute = state;
+            bool shouldBeEnabled = (globalZoneCount == 0);
+            controller.canThrowGrenade = shouldBeEnabled;
+            controller.canUseParachute = shouldBeEnabled;
+            if (blockOverlayImage != null) blockOverlayImage.SetActive(!shouldBeEnabled);
         }
     }
 
     private void ForceUnlockActions()
     {
+        globalZoneCount = 0;
         GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null) SetPlayerAbilities(player, true);
-        
-        // CACHE L'IMAGE AU RESPAWN
-        if (blockOverlayImage != null) blockOverlayImage.SetActive(false);
-        
+        if (player != null) UpdateGlobalAbilities(player);
         _isPlayerInZone = false;
     }
 }
