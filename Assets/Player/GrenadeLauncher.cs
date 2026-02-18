@@ -5,18 +5,18 @@ using System.Collections;
 public class GrenadeLauncher : MonoBehaviour
 {
     [Header("Références")]
-    public GameObject grenadePrefab;
-    public Transform spawnPoint;
+    public GameObject grenadePrefab; // GrenadePropu
+    public Transform spawnPoint;    // spawnpoint
 
     [Header("Réglages")]
-    public float throwForce = 20f;
-    public float upwardForce = 2f;
-    public float animationDelay = 0.55f; // Délai pour l'apparition de la grenade
-    public float throwCooldown = 2.0f;   // Temps de recharge entre deux tirs
+    public float throwForce = 15f;       // Valeur de ton image
+    public float upwardForce = 2f;       // Valeur de ton image
+    public float animationDelay = 0.55f; // Valeur de ton image
+    public float throwCooldown = 5.0f;   // Valeur de ton image
 
     [Header("Audio")]
-    public AudioClip throwSound; 
-    public float audioDelay = 0.2f; // Petit délai avant de jouer le son
+    public AudioClip throwSound;         // throw
+    public float audioDelay = 0.5f;      // Valeur de ton image
 
     private StarterAssetsInputs _input;
     private ThirdPersonController _controller; 
@@ -24,7 +24,6 @@ public class GrenadeLauncher : MonoBehaviour
     private Animator _animator;
     private AudioSource _audioSource; 
     private int _animIDThrow;
-    
     private float _nextThrowTime = 0f; 
 
     void Start()
@@ -39,48 +38,28 @@ public class GrenadeLauncher : MonoBehaviour
 
     void Update()
     {
-        // AJOUT : On vérifie si canThrowGrenade est vrai avant de lancer
         if (_input.grenade && Time.time >= _nextThrowTime && !_controller.IsGliding && _controller.canThrowGrenade)
         {
             _nextThrowTime = Time.time + throwCooldown;
-
-            // 1. Lance la Coroutine pour le son avec un délai
             StartCoroutine(PlayThrowSoundDelayed());
-
-            // 2. On lance l'animation de lancer
-            _animator.SetTrigger(_animIDThrow);
-            
-            // 3. On lance la grenade physiquement après le délai d'animation
+            if (_animator != null) _animator.SetTrigger(_animIDThrow);
             Invoke("Throw", animationDelay);
-            
             _input.grenade = false; 
         }
-        else if (_input.grenade)
-        {
-            // On reset l'input même si le tir est bloqué pour éviter les tirs automatiques en sortant de zone
-            _input.grenade = false;
-        }
+        else if (_input.grenade) { _input.grenade = false; }
     }
 
-    // Fonction spéciale pour attendre avant de jouer le son
     IEnumerator PlayThrowSoundDelayed()
     {
         yield return new WaitForSeconds(audioDelay);
-
-        if (_audioSource != null && throwSound != null)
-        {
-            _audioSource.PlayOneShot(throwSound);
-        }
+        if (_audioSource != null && throwSound != null) _audioSource.PlayOneShot(throwSound);
     }
 
     void Throw()
     {
-        // On vérifie une dernière fois les conditions de sécurité
         if (grenadePrefab == null || spawnPoint == null || _controller.IsGliding || !_controller.canThrowGrenade) return;
-
         GameObject g = Instantiate(grenadePrefab, spawnPoint.position, Quaternion.identity);
         Rigidbody rb = g.GetComponent<Rigidbody>();
-        
         if (rb != null)
         {
             Vector3 forceDirection = _mainCamera.transform.forward;
